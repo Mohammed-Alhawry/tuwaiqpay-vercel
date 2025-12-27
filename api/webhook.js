@@ -1,27 +1,63 @@
-// api/webhook.js
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).send("Method not allowed");
-
-  // IMPORTANT: add verification if TuwaiqPay gives a signature header later
-  // For now we accept the payload and validate important fields.
-  const payload = req.body;
-  console.log("Received webhook:", JSON.stringify(payload));
-
-  // expected example fields: billId, amount, status
-  const { billId, amount, status, transactionId } = payload;
-
-  if (!billId) {
-    return res.status(400).json({ error: "Missing billId" });
+  // نسمح فقط بـ POST
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Basic validation: only act on SUCCESS
-  if (status === "SUCCESS") {
-    // todo: save to DB, update order, send email, etc.
-    console.log(`Payment SUCCESS for bill ${billId} amount ${amount} tx ${transactionId}`);
-    // respond 200 quickly
-    return res.status(200).send("OK");
-  } else {
-    console.log(`Payment status ${status} for bill ${billId}`);
-    return res.status(200).send("OK"); // still return 200 so provider stops retrying
+  try {
+    // هذا هو كل ما أرسله TuwaiqPay
+    const payload = req.body;
+
+    // اطبع كل شيء (للفهم والتجربة)
+    console.log("===== TuwaiqPay Webhook START =====");
+    console.log(JSON.stringify(payload, null, 2));
+    console.log("===== TuwaiqPay Webhook END =====");
+
+    /*
+      مثال محتمل لما سيصل:
+      {
+        transactionId,
+        merchantTransactionId,
+        billId,
+        amount,
+        status,
+        paymentMethod,
+        paidAt,
+        ...أي حقول إضافية
+      }
+    */
+
+    // مثال استخدام أهم القيم
+    const {
+      billId,
+      amount,
+      status,
+      transactionId,
+      paymentMethod,
+      paidAt
+    } = payload;
+
+    if (!billId || !status) {
+      console.warn("Webhook received but missing required fields");
+    }
+
+    if (status === "SUCCESS") {
+      // هنا تعتبر الدفع ناجح
+      // todo:
+      // - حفظ البيانات في DB
+      // - تفعيل اشتراك
+      // - إرسال ايميل
+      console.log("✅ Payment SUCCESS for bill:", billId);
+    } else {
+      console.log("❌ Payment NOT successful:", status);
+    }
+
+    // مهم جدًا: الرد 200
+    return res.status(200).json({ received: true });
+
+  } catch (error) {
+    console.error("Webhook error:", error);
+    // حتى لو حصل خطأ، حاول ترجع 200 عشان لا يعيدوا الإرسال
+    return res.status(200).json({ received: true });
   }
 }
